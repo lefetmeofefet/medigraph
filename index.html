@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="graphshroom/libs/pixi/pixi-v5.1.3.min.js"></script>
+    <script src="graphshroom/libs/isMobile/isMobile.js"></script>
+    <!--<script src="graphshroom/libs/pixi/pixi-v5.1.3.min.js"></script>-->
+
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+    </style>
+
+    <script type="module">
+        import {create_graph} from "./graphshroom/graphshroom.js"
+        import graph from "./graph.js"
+
+        // let graph = {
+        //     nodes: {
+        //         a: {
+        //             name: "Ibuprofen",
+        //                 position: {x: 0, y: 0},
+        //             color: COLORS.QUEUE
+        //         },
+        //         b: {
+        //             name: "b",
+        //                 position: {x: 0, y: 200},
+        //             color: COLORS.QUEUE
+        //         },
+        //         c: {
+        //             name: "c",
+        //                 position: {x: 200, y: 200},
+        //             color: COLORS.QUEUE
+        //         },
+        //         d: {
+        //             name: "d",
+        //                 position: {x: 400, y: 400},
+        //             color: COLORS.QUEUE
+        //         }
+        //     },
+        //     edges: [
+        //         {source: "a", destination: "b"},
+        //         {source: "a", destination: "c"},
+        //         {source: "b", destination: "d"},
+        //         {source: "c", destination: "d"},
+        //     ],
+        // }
+
+
+        let nodes = {}
+        let i=0;
+        for (let node of graph.nodes) {
+            // node.name = node.name.replace("-", "_")
+            i++
+            nodes[node.name] = node
+            // if (i === 12) {
+            //     break;
+            // }
+        }
+        graph.nodes = nodes
+        // graph.edges = []
+        create_graph(document.querySelector("#graph-anchor"), graph)
+
+    </script>
+</head>
+<body>
+<div id="graph-anchor"></div>
+</body>
+</html>
