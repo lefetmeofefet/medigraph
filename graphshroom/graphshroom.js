@@ -4,13 +4,14 @@ import {NavigationMobile} from "./systems/navigation/navigationMobile.js";
 import {NavigationDesktop} from "./systems/navigation/navigationDesktop.js";
 import {GraphSystem} from "./systems/graph/graphSystem.js";
 import {NodeInteraction} from "./systems/nodeInteraction.js";
+import {Forces} from "./systems/physics/forces.js";
 
-function create_graph(anchor, graph) {
+function create_graph(anchor, graph, {onLoad, onHover, onHoverOut, onClick}) {
     let pixiCanvas = new PixiCanvas(0x141414);
 
     let setup = () => {
-        let systems = getSystems(pixiCanvas, graph);
-        pixiCanvas.startRenderLoop(delte => {
+        let systems = getSystems(pixiCanvas, graph, {onLoad, onHover, onHoverOut, onClick});
+        pixiCanvas.startRenderLoop(delta => {
             for (let system of systems) {
                 system.run();
             }
@@ -24,13 +25,22 @@ function create_graph(anchor, graph) {
         .load(setup);
 }
 
-function getSystems(pixiCanvas, graph) {
+function getSystems(pixiCanvas, graph, {onLoad, onHover, onHoverOut, onClick}) {
     let inputSystem = new Input(
         () => pixiCanvas.stage.scale,
         () => pixiCanvas.stage.pivot,
         () => pixiCanvas.renderer.plugins.interaction.mouse.global,
         (event, cb) => pixiCanvas.renderer.plugins.interaction.on(event, cb)
     );
+
+    let graphSystem = new GraphSystem(
+        pixiCanvas,
+        graph
+    );
+    onLoad(graphSystem);
+
+    let nodeInteractionSystem = new NodeInteraction(inputSystem, graphSystem, onHover, onHoverOut, onClick);
+
     let navigationSystem = window.IsMobile ?
         new NavigationMobile(
             pivot => pixiCanvas.setPivot(pivot.x, pivot.y),
@@ -49,21 +59,18 @@ function getSystems(pixiCanvas, graph) {
             () => pixiCanvas.stage.pivot,
             inputSystem,
             0.03,
-            1
+            1,
+            nodeInteractionSystem
         );
 
-    let graphSystem = new GraphSystem(
-        pixiCanvas,
-        graph
-    );
-
-    let nodeInteractionSystem = new NodeInteraction(inputSystem, graphSystem);
+    let edgeForcesSystem = new Forces(graphSystem, nodeInteractionSystem);
 
     return [
         inputSystem,
         navigationSystem,
         graphSystem,
-        nodeInteractionSystem
+        nodeInteractionSystem,
+        edgeForcesSystem
     ];
 }
 

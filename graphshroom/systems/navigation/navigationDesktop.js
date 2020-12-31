@@ -15,8 +15,10 @@ class NavigationDesktop extends NavigationBase {
         return 0.05
     }
 
-    constructor(setPivotCb, setScaleCb, screenDimensionsCb, pivotCb, inputSystem, scaleMin, scaleMax) {
+    constructor(setPivotCb, setScaleCb, screenDimensionsCb, pivotCb, inputSystem, scaleMin, scaleMax, nodeInteractionSystem) {
         super(setPivotCb, setScaleCb, screenDimensionsCb, pivotCb, inputSystem, scaleMin, scaleMax);
+
+        this._nodeInteractionSystem = nodeInteractionSystem;
 
         this._scaleDestination = 1;
         this._scaleSpeed = 0;
@@ -75,7 +77,8 @@ class NavigationDesktop extends NavigationBase {
         }
 
         // Left button drag
-        if (this._inputSystem.dragging && this._inputSystem.isKeyPressed("Control")) {
+        if (this._inputSystem.dragging &&
+            (this._nodeInteractionSystem._draggedNode == null || this._inputSystem.isKeyPressed("Control"))) {
             let dragVector = this._inputSystem.dragStartPoint.minus(this._inputSystem.mouse);
             this.center.set(this.center.plus(dragVector));
             this.shouldUpdateCenter = true;

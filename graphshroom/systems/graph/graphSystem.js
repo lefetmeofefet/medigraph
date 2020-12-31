@@ -6,6 +6,10 @@ class GraphSystem {
         return this._nodes.values()
     }
 
+    get edges() {
+        return this._edges;
+    }
+
     constructor(pixiCanvas, {nodes, edges}) {
         this._pixiCanvas = pixiCanvas;
 
@@ -15,9 +19,16 @@ class GraphSystem {
         Node.InitializeResources(pixiCanvas.renderer, pixiCanvas.stage);
         Edge.InitializeResources(pixiCanvas.renderer, pixiCanvas.stage);
 
-        for (let key of Object.keys(nodes)) {
-            let node = new Node(nodes[key]);
-            this._nodes.set(key, node);
+        if (nodes instanceof Map) {
+            for (let key of nodes.keys()) {
+                let node = new Node(nodes.get(key));
+                this._nodes.set(key, node);
+            }
+        } else {
+            for (let key of Object.keys(nodes)) {
+                let node = new Node(nodes[key]);
+                this._nodes.set(key, node);
+            }
         }
 
         for (let edge of edges) {

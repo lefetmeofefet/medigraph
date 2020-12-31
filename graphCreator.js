@@ -50,6 +50,7 @@ async function start() {
             }
         }
 
+
         let color = 0x2d8732
         let y = 100;
         let y2 = 100;

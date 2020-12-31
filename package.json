@@ -5,7 +5,8 @@
   "main": "graphCreator.js",
   "type": "module",
   "dependencies": {
-    "puppeteer": "^5.5.0"
+    "puppeteer": "^5.5.0",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {},
   "scripts": {

@@ -23,6 +23,10 @@ class Vector {
         return Vector.Minus(v1, v2).direction();
     }
 
+    static Inverted(v) {
+        return new Vector(-v.x, -v.y);
+    }
+
     static Distance(v1, v2) {
         return Math.sqrt((v1.x - v2.x) * (v1.x - v2.x) + (v1.y - v2.y) * (v1.y - v2.y));
     }
@@ -122,6 +126,7 @@ class Vector {
         const direction = this.direction();
         this.x = Math.cos(direction) * magnitude;
         this.y = Math.sin(direction) * magnitude;
+        return this
     }
 
     resized(magnitude) {

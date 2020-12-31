@@ -64,7 +64,7 @@ class Edge {
         sourceNode.outgoingEdges.push(this);
         this.destinationNode = destinationNode;
         destinationNode.incomingEdges.push(this);
-        this.description = edgeObject.action;
+        this.description = edgeObject.description;
         this._createSprites(edgeObject);
     }
 
@@ -85,10 +85,10 @@ class Edge {
         this.triangleSprite.anchor.x = 1.0;
         this.triangleSprite.tint = 0x777777;
 
-        this.descriptionText = new PIXI.BitmapText(this.description, {
+        this.descriptionText = new PIXI.BitmapText(this.description || "", {
             font: {
                 name: "Roboto",
-                size: 30
+                size: 20
             }
         });
         this.descriptionText.anchor.x = 0.5;
@@ -122,6 +122,18 @@ class Edge {
 
         this.descriptionText.position.x = (startPoint.x + endPoint.x) / 2;
         this.descriptionText.position.y = (startPoint.y + endPoint.y) / 2;
+    }
+
+    calculateFade() {
+        if (this.sourceNode.faded || this.destinationNode.faded) {
+            this.lineSprite.alpha = 0.3;
+            this.triangleSprite.alpha = 0.3;
+            this.descriptionText.alpha = 0.3;
+        } else {
+            this.lineSprite.alpha = 1;
+            this.triangleSprite.alpha = 1;
+            this.descriptionText.alpha = 1;
+        }
     }
 }
 
