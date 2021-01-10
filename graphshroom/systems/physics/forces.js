@@ -2,7 +2,9 @@ import {Node} from "../../entities/node.js"
 import {Edge} from "../../entities/edge.js";
 import {Vector} from "../../physics/vector.mjs";
 
-const EDGE_BASE_LENGTH = 100;
+let EDGE_BASE_LENGTH = 150;
+window.setLength = length => EDGE_BASE_LENGTH = length
+
 const EDGE_STIFFNESS_COEFFICIENT = 0.0006;
 
 class Forces {

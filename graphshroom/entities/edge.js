@@ -97,6 +97,12 @@ class Edge {
 
         this.updatePoints();
 
+        if (Math.random() > 0.05) {
+            // this.descriptionText.visible = false
+            // this.triangleSprite.visible = false
+            // this.lineSprite.visible = false
+        }
+
         Edge.EdgesContainer.addChild(this.lineSprite);
         Edge.EdgesContainer.addChild(this.triangleSprite);
         Edge.EdgesTextContainer.addChild(this.descriptionText);
@@ -134,6 +140,18 @@ class Edge {
             this.triangleSprite.alpha = 1;
             this.descriptionText.alpha = 1;
         }
+    }
+
+    updateDisplay(scale) {
+        // Scaling direction triangle sprite. 0.5 is base scale
+        let triangleScale = Math.min(Math.max(0.5, 0.3 / scale), 1.5);
+        this.triangleSprite.scale.x = triangleScale;
+        this.triangleSprite.scale.y = triangleScale;
+
+        // Scaling edge line width. 1 is base scale
+        this.lineSprite.scale.y = Math.max(1, 0.25 / scale);
+
+        // TODO: Do everything here. change text scale and color when zoom threshold reached, make nodes disappear, drag, etc
     }
 }
 

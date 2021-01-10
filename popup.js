@@ -27,11 +27,22 @@ customElements.define("pop-up", class extends HTMElement {
 
         document.addEventListener(
             "mousedown",
-            () => this.close(),
+            e => {
+                if (!this.contains(e.target) && this.state.open) {
+                    this.close()
+                }
+            },
             {
                 capture: false
             }
         )
+
+        this.addEventListener("mouseenter", () => {
+           this.isMouseInside = true;
+        });
+        this.addEventListener("mouseleave", () => {
+            // this.close()
+        });
     }
 
     render() {
@@ -45,12 +56,30 @@ ${() => this.state.data != null && this.state.open && this.html(this.state)`
         display: flex;
         flex-direction: column;
         z-index: 1;
-        pointer-events: none;
         background-color: #222222;
         border-radius: 4px;
         box-shadow: 1px 1px 5px 0px #000000c2;
         padding: 20px;
         color: #bbbbbb;
+    }
+    
+    :host {
+        pointer-events: ${() => this.state.data.clickable ? "all" : "none"};
+    }
+    
+    #close-button {
+        background-color: #ffffff22;
+        border-radius: 100px;
+        cursor: pointer;
+        width: 30px;
+        height: 30px;
+        font-size: 18px;
+        padding-top: 1px;
+        display: flex;
+        justify-content: center;
+        position: absolute;
+        right: 10px;
+        top: 10px;
     }
     
     #title {
@@ -64,66 +93,95 @@ ${() => this.state.data != null && this.state.open && this.html(this.state)`
         display: flex;
         flex-direction: column;
         max-height: 600px;
+        overflow-y: auto;
+        overflow-x: hidden;
     }
     
-    #body > .row {
+    .row {
         display: flex;
-        margin-top: 10px;
+        margin-bottom: 10px;
     }
     
-    #body > .row > .field-name {
-        display: flex;
-        width: 130px;
-        min-width: 130px;
+    .row > .field-name {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        display: block;
+        width: 140px;
+        min-width: 140px;
         opacity: 0.8;
     }
     
-    #body > .row > .field-value {
+    .row > .field-value {
         display: flex;
         max-width: 300px;
     }
+    
+    /*.object-container + .object-container {*/
+    /*    padding-top: 10px;*/
+    /*    border-top: 1px solid grey;*/
+    }
 </style>
+
+<div id="close-button" onclick=${() => this.close()}>
+    x
+</div>
 
 <div>
     <div id="title">
         ${() => this.state.data.name}
     </div>
     <div id="body">
-        <div class="row">
-            <div class="field-name">Type</div>
-            <div class="field-value">${() => this.state.data.type}</div>
-        </div>
-        <div class="row">
-            <div class="field-name">Other Names</div>
-            <div class="field-value">${() => this.state.data.otherNames.toString()}</div>
-        </div>
-        <div class="row">
-            <div class="field-name">Location</div>
-            <div class="field-value">${() => this.state.data.cellularLocation != null &&
-            this.state.data.cellularLocation.toString()}</div>
-        </div>
-        <div class="row">
-            <div class="field-name">Component Stoichiometry</div>
-            <div class="field-value">${() => JSON.stringify(this.state.data.componentStoichiometry, null, 1)}</div>
-        </div>
-        <div class="row">
-            <div class="field-name">Participant Stoichiometry</div>
-            <div class="field-value">${() => JSON.stringify(this.state.data.participantStoichiometry, null, 1)}</div>
-        </div>
-        <div class="row">
-            <div class="field-name">Other DBs</div>
-            <div class="field-value" style="display: flex; flex-direction: column;">
-                ${() => this.state.data.unificationRefs != null && this.state.data.unificationRefs.map(ref => this.html(ref)`
-                <div>
-                    ${() => ref.db}: ${() => ref.id}
-                </div>
-                `)}
-            </div>
-        </div>
+        ${() => this.renderJson(this.state.data.json)}
     </div>
 </div>
 `}
             `
+    }
+
+    renderJson(json) {
+        return this.html()`
+        <div class="object-container">
+            ${() => {
+            let render = [];
+            for (let [key, value] of Object.entries(json)) {
+                if (["name"].includes(key)) {
+                    continue
+                }
+
+                if (value instanceof Array) {
+                    value = value.map(item => {
+                        if (item instanceof Object) {
+                            return this.renderJson(item)
+                        }
+                        return item.toString()
+                    });
+                    if (value.length === 0) {
+                        value = "[]"
+                    }
+                } else if (value instanceof Object) {
+                    if (value.displayType === "link") {
+                        value = this.html()`<a target="_blank" href="${value.link}">${value.name}</a>`
+                    } else {
+                        value = this.renderJson(value)
+                    }
+                } else if (value == null) {
+                    value = ""
+                } else {
+                    value = value.toString()
+                }
+                if (render)
+                    render.push(this.html()`
+                    <div class="row">
+                        <div class="field-name">${key}</div>
+                        <div class="field-value" style="display: flex; flex-direction: column;">${() => value}</div>
+                    </div>
+                    `)
+                }
+                return render    
+            }}
+        </div>
+        `
     }
 
     popup(node) {
@@ -133,57 +191,38 @@ ${() => this.state.data != null && this.state.open && this.html(this.state)`
         };
         this.state.open = true;
 
-        let res = node.originalNodeRef.originalResource;
-        let namesList = new Set();
-        if (res.hasOwnProperty("bp:name")) {
-            res["bp:name"].forEach(name => namesList.add(name["_"]))
-        }
-        if (res.hasOwnProperty("bp:displayName")) {
-            res["bp:displayName"].forEach(name => namesList.add(name["_"]))
-        }
-        if (res.hasOwnProperty("entityReference")) {
-            let ref = res["entityReference"][0];
-            if (ref.hasOwnProperty("bp:name")) {
-                ref["bp:name"].forEach(name => namesList.add(name["_"]))
-            }
-            if (ref.hasOwnProperty("bp:displayName")) {
-                ref["bp:displayName"].forEach(name => namesList.add(name["_"]))
-            }
-        }
+        let bioEntity = node.originalNodeRef.bioEntity.getDisplayJson();
+        bioEntity.cellularLocation = node.originalNodeRef.cellularLocation
 
         this.state.data = {
-            name: node.name,
-            otherNames: [...namesList],
-            type: node.originalNodeRef.type.substr(3),
-            controlType: res.hasOwnProperty("bp:controlType") ? res["bp:controlType"][0]["_"] : "",
-            cellularLocation: res.cellularLocation == null ? "" : res.cellularLocation[0]["bp:term"][0]["_"],
-            componentStoichiometry: res.componentStoichiometry == null ?
-                [] : res.componentStoichiometry.map(
-                    stoich => ({
-                        coefficient: stoich.stoichiometricCoefficient,
-                        physicalEntity: stoich.physicalEntity.hasOwnProperty("bp:name") ?
-                            stoich.physicalEntity["bp:name"][0]["_"] : (
-                                stoich.physicalEntity.hasOwnProperty("bp:displayName") ?
-                                    stoich.physicalEntity["bp:displayName"][0]["_"] : "UNKNOWN (FIX THIS)"
-                            )
-                    })
-                ),
-            participantStoichiometry: res.participantStoichiometry == null ?
-                [] : res.participantStoichiometry.map(
-                    stoich => ({
-                        coefficient: stoich.stoichiometricCoefficient,
-                        physicalEntity: stoich.physicalEntity.hasOwnProperty("bp:name") ?
-                            stoich.physicalEntity["bp:name"][0]["_"] : (
-                                stoich.physicalEntity.hasOwnProperty("bp:displayName") ?
-                                    stoich.physicalEntity["bp:displayName"][0]["_"] : "UNKNOWN (FIX THIS)"
-                            )
-                    })
-                ),
-            unificationRefs: node.originalNodeRef.unificationRefs,
+            name: bioEntity.name,
+            clickable: node.selected,
+            json: bioEntity
         };
+
+        let {width, height} = this.getBoundingClientRect();
+        let margin = 10;
+
+        if (this.state.position.x + width + margin > window.innerWidth) {
+            this.state.position.x = window.innerWidth - width - margin;
+        }
+        if (this.state.position.x < margin) {
+            this.state.position.x = margin;
+        }
+
+        if (this.state.position.y + height + margin > window.innerHeight) {
+            this.state.position.y = window.innerHeight - height - margin;
+        }
+        if (this.state.position.y < margin) {
+            this.state.position.y = margin;
+        }
+
+        // IMPROTANT
+        this.state.position = this.state.position;
     }
 
     close() {
         this.state.open = false;
+        this.isMouseInside = false;
     }
 });

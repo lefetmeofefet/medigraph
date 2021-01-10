@@ -38,9 +38,13 @@ class GraphSystem {
     }
 
     run() {
-        for (let node of new Array(...this._nodes).map(n => n[1])) {
+        for (let node of this.nodes) {
             let scale = this._pixiCanvas.scale;
             node.updateDisplay(scale)
+        }
+        for (let edge of this.edges) {
+            let scale = this._pixiCanvas.scale;
+            edge.updateDisplay(scale)
         }
     }
 }

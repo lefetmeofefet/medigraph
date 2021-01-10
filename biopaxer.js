@@ -5,8 +5,9 @@ export function parseBiopax(xml, finished) {
     xml2js.parseString(xml, (err, result) => {
         result = result["rdf:RDF"];
         // let pathwayOrder = oneItem(result["bp:Pathway"])["bp:pathwayOrder"].map(o => o["$"]["rdf:resource"].substr(1));
+        console.log(result)
 
-        let RES_KEY_NAMES = {
+        let RESOURCE_KEY_NAMES = {
             Pathway: "bp:Pathway",
             PathwayStep: "bp:PathwayStep",
             BiochemicalPathwayStep: "bp:BiochemicalPathwayStep",
@@ -29,10 +30,13 @@ export function parseBiopax(xml, finished) {
             Complex: "bp:Complex",
             Stoichiometry: "bp:Stoichiometry",
             PhysicalEntity: "bp:PhysicalEntity",
+            Transport: "bp:Transport",
+            Dna: "bp:Dna",
+            DnaReference: "bp:DnaReference",
             Control: "bp:Control",
         }
         let resourcesDict = Object.fromEntries(
-            Object.values(RES_KEY_NAMES)
+            Object.values(RESOURCE_KEY_NAMES)
                 .map(resName => {
                     return result.hasOwnProperty(resName) ?
                         result[resName]
@@ -75,13 +79,15 @@ export function parseBiopax(xml, finished) {
             // Extract node name
             // TODO: Extract SmallMoleculeReference data!! there's unificationRefs and more names
             let name;
-            if (resource.type === RES_KEY_NAMES.BiochemicalReaction ||
-                resource.type === RES_KEY_NAMES.SmallMolecule ||
-                resource.type === RES_KEY_NAMES.Complex ||
-                resource.type === RES_KEY_NAMES.PhysicalEntity ||
-                resource.type === RES_KEY_NAMES.Protein) {
+            if (resource.type === RESOURCE_KEY_NAMES.BiochemicalReaction ||
+                resource.type === RESOURCE_KEY_NAMES.SmallMolecule ||
+                resource.type === RESOURCE_KEY_NAMES.Complex ||
+                resource.type === RESOURCE_KEY_NAMES.PhysicalEntity ||
+                resource.type === RESOURCE_KEY_NAMES.Transport ||
+                resource.type === RESOURCE_KEY_NAMES.Dna ||
+                resource.type === RESOURCE_KEY_NAMES.Protein) {
                 name = oneItem(resource["bp:displayName"])["_"];
-            } else if (resource.type === RES_KEY_NAMES.Catalysis || resource.type === RES_KEY_NAMES.Control) {
+            } else if (resource.type === RESOURCE_KEY_NAMES.Catalysis || resource.type === RESOURCE_KEY_NAMES.Control) {
                 name = `${resource.type.substr(3)}: ${oneItem(resource["bp:controlType"])["_"]}`;
             } else {
                 throw `UNEXPECTED RESOURCE TYPE! ${resource.type}`
@@ -103,7 +109,7 @@ export function parseBiopax(xml, finished) {
             if (resource.hasOwnProperty("bp:xref")) {
                 resource["references"] = flattenReferences(resource["bp:xref"]);
                 newNode.unificationRefs = resource["references"]
-                    .filter(ref => ref.type === RES_KEY_NAMES.UnificationXref)
+                    .filter(ref => ref.type === RESOURCE_KEY_NAMES.UnificationXref)
                     .map(ref => ({
                         db: oneItem(ref["bp:db"])["_"],
                         id: oneItem(ref["bp:id"])["_"],
@@ -111,12 +117,14 @@ export function parseBiopax(xml, finished) {
                         comment: ref.hasOwnProperty("bp:comment") ? oneItem(ref["bp:comment"])["_"] : null,
                     }));
                 if (resource.hasOwnProperty("bp:eCNumber")) {
-                    newNode.unificationRefs.push({
-                        db: "EC Numbers",
-                        id: oneItem(resource["bp:eCNumber"])["_"],
-                        idVersion: null,
-                        comment: "The unique number assigned to a reaction by the Enzyme Commission of the International Union of Biochemistry and Molecular Biology."
-                    })
+                    for (let ecNumber of resource["bp:eCNumber"]) {
+                        newNode.unificationRefs.push({
+                            db: "EC Numbers",
+                            id: ecNumber["_"],
+                            idVersion: null,
+                            comment: "The unique number assigned to a reaction by the Enzyme Commission of the International Union of Biochemistry and Molecular Biology."
+                        })
+                    }
                 }
             }
 
@@ -128,19 +136,20 @@ export function parseBiopax(xml, finished) {
             }
             if (resource.hasOwnProperty("bp:entityReference")) {
                 resource["entityReference"] = flattenReferences(resource["bp:entityReference"]);
-                let ref = resource["entityReference"][0];
-                if (ref.hasOwnProperty("bp:xref")) {
-                    let refs = flattenReferences(ref["bp:xref"]);
-                    newNode.unificationRefs.push(...(
-                        refs
-                            .filter(ref => ref.type === RES_KEY_NAMES.UnificationXref)
-                            .map(ref => ({
-                                db: oneItem(ref["bp:db"])["_"],
-                                id: oneItem(ref["bp:id"])["_"],
-                                idVersion: ref.hasOwnProperty("bp:idVersion") ? oneItem(ref["bp:idVersion"])["_"] : null,
-                                comment: ref.hasOwnProperty("bp:comment") ? oneItem(ref["bp:comment"])["_"] : null,
-                            }))
-                    ));
+                for (let ref of resource["entityReference"]){
+                    if (ref.hasOwnProperty("bp:xref")) {
+                        let refs = flattenReferences(ref["bp:xref"]);
+                        newNode.unificationRefs.push(...(
+                            refs
+                                .filter(ref => ref.type === RESOURCE_KEY_NAMES.UnificationXref)
+                                .map(ref => ({
+                                    db: oneItem(ref["bp:db"])["_"],
+                                    id: oneItem(ref["bp:id"])["_"],
+                                    idVersion: ref.hasOwnProperty("bp:idVersion") ? oneItem(ref["bp:idVersion"])["_"] : null,
+                                    comment: ref.hasOwnProperty("bp:comment") ? oneItem(ref["bp:comment"])["_"] : null,
+                                }))
+                        ));
+                    }
                 }
             }
             if (resource.hasOwnProperty("bp:feature")) {
@@ -163,14 +172,28 @@ export function parseBiopax(xml, finished) {
             }
 
             // Create relationships
-            if (newNode.type === RES_KEY_NAMES.PhysicalEntity) {
-                flattenReferences(resource["bp:memberPhysicalEntity"])
-                    .map(res => getOrCreateNode(res))
-                    .forEach(memberNode => createEdge(memberNode, newNode, "Member"));
-            } else if (newNode.type === RES_KEY_NAMES.Complex) {
-                flattenReferences(resource["bp:component"])
-                    .map(res => getOrCreateNode(res))
-                    .forEach(componentNode => createEdge(componentNode, newNode, "Component"));
+            if (newNode.type === RESOURCE_KEY_NAMES.PhysicalEntity) {
+                if (resource.hasOwnProperty("bp:memberPhysicalEntity")) {
+                    flattenReferences(resource["bp:memberPhysicalEntity"])
+                        .map(res => getOrCreateNode(res))
+                        .forEach(memberNode => createEdge(memberNode, newNode, "Member"));
+                }
+                if (resource.hasOwnProperty("bp:component")) {
+                    flattenReferences(resource["bp:component"])
+                        .map(res => getOrCreateNode(res))
+                        .forEach(componentNode => createEdge(componentNode, newNode, "Component"));
+                }
+            } else if (newNode.type === RESOURCE_KEY_NAMES.Complex) {
+                if (resource.hasOwnProperty("bp:component")) {
+                    flattenReferences(resource["bp:component"])
+                        .map(res => getOrCreateNode(res))
+                        .forEach(componentNode => createEdge(componentNode, newNode, "Component"));
+                }
+                if (resource.hasOwnProperty("bp:memberPhysicalEntity")) {
+                    flattenReferences(resource["bp:memberPhysicalEntity"])
+                        .map(res => getOrCreateNode(res))
+                        .forEach(memberNode => createEdge(memberNode, newNode, "Member"));
+                }
             }
 
             return newNode
@@ -192,12 +215,12 @@ export function parseBiopax(xml, finished) {
         //     for (let step of process) {
         for (let step of [
             ...result["bp:BiochemicalReaction"],
-            ...result["bp:Catalysis"],
+            ...(result["bp:Catalysis"] || []),
             ...(result["bp:Control"] || [])]
             ) {
             let newNode = getOrCreateNode(step);
 
-            if (step.type === RES_KEY_NAMES.BiochemicalReaction) {
+            if (step.type === RESOURCE_KEY_NAMES.BiochemicalReaction) {
                 let direction = oneItem(step["bp:conversionDirection"])["_"];
                 let incomingDirection, outgoingDirection;
 
@@ -221,7 +244,7 @@ export function parseBiopax(xml, finished) {
                     .map(res => getOrCreateNode(res))
                     .forEach(outgoingEdge => createEdge(newNode, outgoingEdge));
 
-            } else if (step.type === RES_KEY_NAMES.Catalysis || step.type === RES_KEY_NAMES.Control) {
+            } else if (step.type === RESOURCE_KEY_NAMES.Catalysis || step.type === RESOURCE_KEY_NAMES.Control) {
                 flattenReferences(step["bp:controller"])
                     .map(res => getOrCreateNode(res))
                     .forEach(incomingNode => createEdge(incomingNode, newNode));

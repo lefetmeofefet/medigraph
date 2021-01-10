@@ -30,10 +30,10 @@ class Node {
 
             // Multiply the radius for better resolution texture, later is downsized.
             const radius = Node.RADIUS * 2;
+            const width = 10
 
-
-            graphics.lineStyle(5, 0xffffff, 1);
-            graphics.drawCircle(radius, radius, radius - 5);
+            graphics.lineStyle(width, 0xffffff, 1);
+            graphics.drawCircle(radius, radius, radius - width);
             graphics.endFill();
 
             return renderer.generateTexture(graphics);
@@ -132,6 +132,12 @@ class Node {
         this.nameText.tint = 0xffffff;
 
         this._updateGraphicsPosition();
+
+        if (Math.random() > 0.05) {
+            // this.nameText.visible = false
+            // this.mainSprite.visible = false
+            // this.outlineSprite.visible = false
+        }
 
         Node.NodesContainer.addChild(this.mainSprite);
         Node.NodesContainer.addChild(this.outlineSprite);

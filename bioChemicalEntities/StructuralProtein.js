@@ -1,0 +1,6 @@
+class StructuralProtein {
+
+}
+
+
+export {StructuralProtein}
