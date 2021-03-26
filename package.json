@@ -5,6 +5,10 @@
   "main": "graphCreator.js",
   "type": "module",
   "dependencies": {
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.1",
+    "pg": "^8.5.1",
+    "pg-promise": "^10.9.2",
     "puppeteer": "^5.5.0",
     "xml2js": "^0.4.23"
   },

@@ -1,16 +1,26 @@
 class BioLocation {
-    name;
-    /**
-     * @property {BioLocation}
-     */
-    childLocations;
+    cellularLocation;
+    cell;
+    tissue;
+    organ;
+    organism;
 
-    _parentLocations = [];
+    constructor({cellularLocation, cell, tissue, organ, organism}) {
+        this.cellularLocation = cellularLocation;
+        this.cell = cell;
+        this.tissue = tissue;
+        this.organ = organ;
+        this.organism = organism;
+    }
 
-    constructor(name, childLocations = []) {
-        this.name = name;
-        this.childLocations = childLocations;
-        this._parentLocations = [];
+    toString() {
+        return [
+            this.organism,
+            this.organ,
+            this.tissue,
+            this.cell,
+            this.cellularLocation,
+        ].filter(item => item != null).join("->")
     }
 }
 

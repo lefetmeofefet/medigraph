@@ -5,6 +5,7 @@ class BiochemicalEntity {
 
     name;
     otherNames = [];
+    description;
 
     /**
      * References to publications about the entity
@@ -24,9 +25,10 @@ class BiochemicalEntity {
      */
     relationshipRefs = [];
 
-    constructor({name, otherNames = [], publicationRefs = [], unificationRefs = [], relationshipRefs = []}) {
+    constructor({name, otherNames = [], description = "", publicationRefs = [], unificationRefs = [], relationshipRefs = []}) {
         this.name = name;
         this.otherNames = otherNames;
+        this.description = description;
         this.publicationRefs = publicationRefs;
         this.unificationRefs = unificationRefs;
         this.relationshipRefs = relationshipRefs;
@@ -36,6 +38,7 @@ class BiochemicalEntity {
         let genericJson = {
             Type: this.type,
             OtherNames: this.otherNames,
+            Description: this.description,
             Publications: this.publicationRefs.map(ref => ({
                 [ref.db]: {
                     displayType: "link",
@@ -59,13 +62,21 @@ class BiochemicalEntity {
             })),
         };
 
-        let json = JSON.parse(JSON.stringify(this));
-        delete json.otherNames;
-        delete json.publicationRefs
-        delete json.unificationRefs
-        delete json.relationshipRefs
-
-        return Object.assign(genericJson, json)
+        try {
+            // let json = JSON.parse(JSON.stringify(this));
+            let json = {};
+            Object.assign(json, this)
+            delete json.otherNames;
+            delete json.description;
+            delete json.publicationRefs
+            delete json.unificationRefs
+            delete json.relationshipRefs
+            return Object.assign(genericJson, json)
+        }
+        catch(e) {
+            console.error("FIX ERROR!!")
+            return genericJson
+        }
     }
 }
 

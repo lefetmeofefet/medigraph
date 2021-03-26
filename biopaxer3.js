@@ -1,8 +1,9 @@
-import "./libs/uuid4.js"
-import "./libs/xml2js.min.js"
+import "./userInterface/libs/uuid4.js"
+import "./userInterface/libs/xml2js.min.js"
 import {SmallMolecule} from "./bioChemicalEntities/SmallMolecule.js";
 import {Enzyme} from "./bioChemicalEntities/Enzyme.js";
 import {Complex} from "./bioChemicalEntities/Complex.js";
+import {ComplexInstance} from "./bioChemicalEntities/instances/ComplexInstance.js";
 import {BiochemicalReaction} from "./bioChemicalEntities/BiochemicalReaction.js";
 import {BiochemicalEntity} from "./bioChemicalEntities/BiochemicalEntity.js";
 import {Dna} from "./bioChemicalEntities/Dna.js";
@@ -12,11 +13,12 @@ import {RelationshipReference} from "./bioChemicalEntities/references/Relationsh
 import {SmallMoleculeInstance} from "./bioChemicalEntities/instances/SmallMoleculeInstance.js";
 import {EnzymeInstance} from "./bioChemicalEntities/instances/EnzymeInstance.js";
 import {BioLocation} from "./bioChemicalEntities/instances/BioLocation.js";
+import {Medigraph} from "./bioChemicalEntities/Medigraph.js";
 
 export function parseBiopax(biopaxXmls, finished) {
     function parseXmlsRecursive(biopaxXmls, parsedXmls = []) {
         if (biopaxXmls.length === 0) {
-            createMedigraph(parsedXmls);
+            finished(createMedigraph(parsedXmls));
             return;
         }
         xml2js.parseString(biopaxXmls[0], (err, biopaxXmlObject) => {
@@ -25,35 +27,37 @@ export function parseBiopax(biopaxXmls, finished) {
         });
     }
 
-    function createMedigraph(biopaxXmlObjects) {
-        // console.log("Unparsed BioPAX: ", biopaxXmlObject)
-
-        let biopaxes = biopaxXmlObjects.map(biopaxXmlObject => jsonifyBiopax(biopaxXmlObject));
-        console.log("Jsonified BioPAXes: ", biopaxes);
-
-        // Create a Medigraph per biopax
-        let medigraphs = biopaxes.map(biopax => createMedigraphFromBiopax(biopax));
-
-        // Join medigraphs
-        let medigraph = {
-            edges: [],
-            nodes: new Map()
-        }
-        for (let m of medigraphs) {
-            for (let edge of m.edges) {
-                medigraph.edges.push(edge)
-            }
-            for (let node of m.nodes.values()) {
-                delete node.bioEntity._nodeRef
-                medigraph.nodes.set(node.id, node)
-            }
-        }
-
-        finished(medigraph)
-    }
-
     parseXmlsRecursive(biopaxXmls)
 }
+
+function createMedigraph(biopaxXmlObjects) {
+    // console.log("Unparsed BioPAX: ", biopaxXmlObject)
+
+    let biopaxes = biopaxXmlObjects.map(biopaxXmlObject => jsonifyBiopax(biopaxXmlObject));
+    console.log("Jsonified BioPAXes: ", biopaxes);
+
+    // Create a Medigraph per biopax
+    let medigraphs = biopaxes.map(biopax => createMedigraphFromBiopax(biopax));
+
+    // Join medigraphs
+    let medigraph = {
+        edges: [],
+        nodes: new Map()
+    }
+    for (let m of medigraphs) {
+        for (let edge of m.edges) {
+            medigraph.edges.push(edge)
+        }
+        for (let node of m.nodes.values()) {
+            delete node.bioEntity._nodeRef
+            medigraph.nodes.set(node.id, node)
+        }
+    }
+
+    return medigraph
+}
+
+export {createMedigraph}
 
 /**
  * Creates a parsimonious JSON representation of the BioPAX from the given BioPAX XML object.
@@ -107,6 +111,14 @@ function jsonifyBiopax(biopaxXmlObject) {
         "root -> bp:BiochemicalReaction -> bp:participantStoichiometry": false,
         "root -> bp:BiochemicalReaction -> bp:spontaneous": true,
 
+        "root -> bp:TemplateReaction": false,
+        "root -> bp:TemplateReaction -> bp:product": true,
+
+        "root -> bp:TemplateReactionRegulation": false,
+        "root -> bp:TemplateReactionRegulation -> bp:controlType": true,
+        "root -> bp:TemplateReactionRegulation -> bp:controller": true,
+        "root -> bp:TemplateReactionRegulation -> bp:controlled": true,
+
         "root -> bp:SmallMolecule": false,
         "root -> bp:SmallMolecule -> bp:cellularLocation": true,
         "root -> bp:SmallMolecule -> bp:memberPhysicalEntity": false,
@@ -116,6 +128,10 @@ function jsonifyBiopax(biopaxXmlObject) {
         "root -> bp:SmallMoleculeReference -> bp:chemicalFormula": true,
         "root -> bp:SmallMoleculeReference -> bp:molecularWeight": true,
         "root -> bp:SmallMoleculeReference -> bp:structure": true,
+
+        "root -> bp:MolecularInteraction": false,
+        "root -> bp:MolecularInteraction -> bp:interactionType": true,
+        "root -> bp:MolecularInteraction -> bp:participant": false,
 
         "root -> bp:CellularLocationVocabulary": false,
 
@@ -138,6 +154,8 @@ function jsonifyBiopax(biopaxXmlObject) {
 
         "root -> bp:Interaction": false,
         "root -> bp:Interaction -> bp:participant": false,
+
+        "root -> bp:InteractionVocabulary": false,
 
         "root -> bp:Protein": false,
         "root -> bp:Protein -> bp:feature": false,
@@ -205,6 +223,14 @@ function jsonifyBiopax(biopaxXmlObject) {
         "root -> bp:Dna -> bp:cellularLocation": true,
         "root -> bp:Dna -> bp:entityReference": true,
 
+        "root -> bp:Rna": false,
+        "root -> bp:Rna -> bp:cellularLocation": true,
+        "root -> bp:Rna -> bp:entityReference": true,
+        "root -> bp:Rna -> bp:feature": true,
+
+        "root -> bp:RnaReference": false,
+        "root -> bp:RnaReference -> bp:organism": false,
+
         "root -> bp:DnaReference": false,
         "root -> bp:DnaReference -> bp:organism": true,
 
@@ -252,7 +278,8 @@ function jsonifyBiopax(biopaxXmlObject) {
                 let newPath = `${path} -> ${key}`;
                 let matchingPath = Object.keys(IS_PATH_SINGLE_LIST).find(path => newPath.endsWith(path));
                 if (matchingPath == null) {
-                    throw `Path doesn't exist in mapping: ${newPath}`
+                    console.error(`Path doesn't exist in mapping: ${newPath}`)
+                    // throw `Path doesn't exist in mapping: ${newPath}`
                 }
                 let isSingleList = IS_PATH_SINGLE_LIST[matchingPath];
                 if (isSingleList) {
@@ -282,16 +309,29 @@ function jsonifyBiopax(biopaxXmlObject) {
     function recursiveUnfoldReference(json) {
         for (let key of Object.keys(json)) {
             let currentJson = json[key];
+            if (key === "_referencers") {
+                continue
+            }
             if (currentJson instanceof Array) {
                 currentJson.forEach((child, index) => {
                     if (child.isReference) {
-                        currentJson[index] = idToBiopaxObject.get(child.reference)
+                        let referencedObj = idToBiopaxObject.get(child.reference);
+                        if (referencedObj._referencers == null) {
+                            referencedObj._referencers = []
+                        }
+                        referencedObj._referencers.push(json);
+                        currentJson[index] = referencedObj;
                     } else if (child instanceof Object) {
                         recursiveUnfoldReference(child)
                     }
                 })
             } else if (currentJson.isReference) {
-                json[key] = idToBiopaxObject.get(currentJson.reference)
+                let referencedObj = idToBiopaxObject.get(currentJson.reference);
+                if (referencedObj._referencers == null) {
+                    referencedObj._referencers = []
+                }
+                referencedObj._referencers.push(json);
+                json[key] = referencedObj;
             } else if (currentJson instanceof Object) {
                 recursiveUnfoldReference(currentJson)
             }
@@ -314,16 +354,6 @@ function createMedigraphFromBiopax(biopax) {
     // Validate all pathways are human
     // TODO
 
-    let organs = [];
-    for (let biopaxBiosource of biopax["bp:BioSource"] || []) {
-        if (biopaxBiosource.hasOwnProperty("bp:tissue")) {
-            // TODO: XREFS! do not ignore them.
-            organs.push(biopaxBiosource["bp:tissue"]["bp:term"])
-        }
-    }
-
-    let organ = organs[0];
-
     let nodes = new Map();
     let edges = [];
 
@@ -333,34 +363,45 @@ function createMedigraphFromBiopax(biopax) {
             return bioEntity._nodeRef
         }
         let node = {
-            id: uuidv4(),
+            id: Math.random(), //uuidv4(),
             name: bioEntity.name,
             bioEntity: bioEntity,
             biopaxObject: biopaxObject,
             incomingEdges: [],
             outgoingEdges: [],
-            cellularLocation: `Homo Sapiens -> ${organ == null ? "" : `${organ} ->`} ${(biopaxObject["bp:cellularLocation"] || {})["bp:term"] || "Unknown"}`,
-            type: bioEntity.type
+            type: bioEntity.type,
+            source: "biopax"
         }
+
+        bioEntity.location = new BioLocation({
+            cellularLocation: (biopaxObject["bp:cellularLocation"] || {})["bp:term"]
+        });
         nodes.set(biopaxObject.id, node);
         bioEntity._nodeRef = node
         return node;
     }
 
     function createEdge(sourceNode, destinationNode, biopaxObject, description) {
-        if (sourceNode === destinationNode) {
-            throw "Cant create node from and to the same entity"
+        try {
+            if (sourceNode === destinationNode) {
+                console.error("Cant create node from and to the same entity")
+                return
+                throw "Cant create node from and to the same entity"
+            }
+            let edge = {
+                source: sourceNode.id,
+                destination: destinationNode.id,
+                biopaxObject: biopaxObject,
+                description
+            }
+            edges.push(edge);
+            sourceNode.outgoingEdges.push(edge);
+            destinationNode.incomingEdges.push(edge);
+            return edge
+        } catch(e) {
+            console.error("SOME ERROR MAKING EDGE")
+            showNotification("SOME ERROR MAKING EDGE", "error")
         }
-        let edge = {
-            source: sourceNode.id,
-            destination: destinationNode.id,
-            biopaxObject: biopaxObject,
-            description
-        }
-        edges.push(edge);
-        sourceNode.outgoingEdges.push(edge);
-        destinationNode.incomingEdges.push(edge);
-        return edge
     }
 
     function mergeBioEntityIfExists(bioEntity) {
@@ -389,12 +430,13 @@ function createMedigraphFromBiopax(biopax) {
         if (name == null) {
             name = biopax["bp:name"].reduce((n1, n2) => n1.length < n2.length ? n1 : n2)
         }
+        let relationshipRefs = xrefFromBiopax("bp:RelationshipXref", RelationshipReference);
         return {
             name: name,
             otherNames: biopax["bp:name"] || [],
             publicationRefs: xrefFromBiopax("bp:PublicationXref", PublicationReference),
-            unificationRefs: xrefFromBiopax("bp:UnificationXref", UnificationReference),
-            relationshipRefs: xrefFromBiopax("bp:RelationshipXref", RelationshipReference),
+            unificationRefs: [...xrefFromBiopax("bp:UnificationXref", UnificationReference), ...relationshipRefs],
+            relationshipRefs: relationshipRefs,
         }
     }
 
@@ -451,7 +493,7 @@ function createMedigraphFromBiopax(biopax) {
 
     // Complexes
     for (let biopaxComplex of biopax["bp:Complex"] || []) {
-        let complex = new Complex(biopaxToBioParams(biopaxComplex))
+        let complex = new ComplexInstance(biopaxToBioParams(biopaxComplex))
         complex = mergeBioEntityIfExists(complex);
         createNode(complex, biopaxComplex);
     }
@@ -489,6 +531,7 @@ function createMedigraphFromBiopax(biopax) {
             // TODO: FIX THE REVERSIBLE FASTTTT
             return ["bp:right", "bp:left"]
         } else {
+            debugger
             throw `DIRECTION IS UNEXPEXTERED: ${direction}`
         }
     }
@@ -530,29 +573,32 @@ function createMedigraphFromBiopax(biopax) {
         createEdge(nodes.get(controller.id), nodes.get(controlled.id), biopaxControl, controlType)
     }
 
+    // MolecularInteraction
+    // TODO: WHAT IS THIS?!?!?! it appears instead of all other interactions only on EGF pathway
+    for (let biopaxInteraction of biopax["bp:MolecularInteraction"] || []) {
+        let participants = biopaxInteraction["bp:participant"];
+        if (participants.length !== 2) {
+            showNotification("MolecularInteraction participants length is unexpected", "error")
+            throw "MolecularInteraction participants length is unexpected"
+        }
+        let [participant1, participant2] = participants;
+        createEdge(nodes.get(participant1.id), nodes.get(participant2.id), biopaxInteraction, "interaction")
+    }
+
     let idToNode = new Map();
     for (let node of nodes.values()) {
         idToNode.set(node.id, node);
     }
-    return {
-        nodes: idToNode,
-        edges
-    }
+    return new Medigraph(idToNode, edges)
 }
 
-// import {
-//     ReactomeVitaminK,
-//     PathbankVitaminK,
-//     PathbankFructoseIntolerance,
-//     PathbankIbuprofen,
-//     PathbankArachidonicAcid,
-//     ReactomeHemostasis,
-//     PathbankWarfarin
-// } from "./pathways.js"
-//
-//
-//
-// // parseBiopax(ReactomeVitaminK);
-// // parseBiopax(PathbankVitaminK);
-// parseBiopax(PathbankWarfarin);
-// // parseBiopax(ReactomeHemostasis);
+import BiopaxPathways from "./biopaxPathways.js"
+
+
+
+if (typeof window === 'undefined') {
+    // parseBiopax([BiopaxPathways.ReactomeVitaminK]);
+    // parseBiopax([BiopaxPathways.PathbankVitaminK]);
+    // parseBiopax([BiopaxPathways.PathbankWarfarin]);
+    // parseBiopax([BiopaxPathways.ReactomeHemostasis]);
+}

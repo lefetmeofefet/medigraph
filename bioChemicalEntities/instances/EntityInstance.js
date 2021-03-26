@@ -1,11 +1,11 @@
 import {BiochemicalEntity} from "../BiochemicalEntity.js";
 
 class EntityInstance extends BiochemicalEntity {
-    cellularLocation;
+    location;
 
-    constructor(props, cellularLocation) {
+    constructor(props, location) {
         super(props);
-        this.cellularLocation = cellularLocation
+        this.location = location
     }
 }
 

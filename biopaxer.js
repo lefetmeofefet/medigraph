@@ -1,4 +1,4 @@
-import "./libs/xml2js.min.js"
+import "./userInterface/libs/xml2js.min.js"
 
 
 export function parseBiopax(xml, finished) {
