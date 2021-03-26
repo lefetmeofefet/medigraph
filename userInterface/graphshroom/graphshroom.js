@@ -25,7 +25,7 @@ function create_graph(anchor, graph, {onLoadPixi, onLoadSystems, onHover, onHove
 
     // PIXI.loader
     PIXI.Loader.shared
-        .add("Roboto", "graphshroom/res/font/roboto-bitmap.fnt")
+        .add("Roboto", "userInterface/graphshroom/res/font/roboto-bitmap.fnt")
         .on("progress", e => console.log("Progress: ", e))
         // .load(setup);
         .load(() => onLoadPixi((...args) => setup(...args)));
