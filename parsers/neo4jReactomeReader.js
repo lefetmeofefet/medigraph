@@ -1,7 +1,7 @@
 // import "https://unpkg.com/neo4j-driver@4.2.3/lib/browser/neo4j-web.min.js"
 // import "https://unpkg.com/neo4j-driver@1.7.8/lib/browser/neo4j-web.min.js"
 // import "../userInterface/libs/neo4j/neo4j-driver.js"
-import VitaminKPathway from "../pathways/reactome/neo4j/neo4j_vitamin_k_osteocalcin.js"
+import VitaminKPathway from "../userInterface/neo4j_vitamin_k_osteocalcin.js"
 
 import {one, post} from "./parserUtil.js";
 import {Medigraph} from "../bioChemicalEntities/Medigraph.js";
