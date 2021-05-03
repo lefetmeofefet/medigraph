@@ -1,16 +1,31 @@
 import {Node} from "../../entities/node.js"
 import {Edge} from "../../entities/edge.js";
 import {Vector} from "../../physics/vector.mjs";
+import {SparseEntitiesGrid} from "./sparseEntitiesGrid.js";
 
 let EDGE_BASE_LENGTH = 150;
 window.setLength = length => EDGE_BASE_LENGTH = length
 
 const EDGE_STIFFNESS_COEFFICIENT = 0.0006;
+const CLUSTER_SIZE = 2;
 
 class Forces {
     constructor(graphSystem, nodeInteractionSystem) {
         this._graphSystem = graphSystem;
         this._nodeInteractionSystem = nodeInteractionSystem;
+
+        this.initializeForces()
+        this.entitiesGrid = new SparseEntitiesGrid()
+        for (let node of graphSystem.nodes) {
+            this.entitiesGrid.addEntity(node, node.position.x, node.position.y)
+        }
+
+        // Clusters
+        this.clusters = [];
+        this.clusterNodes()
+    }
+
+    initializeForces() {
         for (let node of this._graphSystem.nodes) {
             node.physics = {
                 force: new Vector(0, 0),
@@ -33,11 +48,79 @@ class Forces {
         }
     }
 
+    clusterNodes() {
+        for (let node of this._graphSystem.nodes) {
+            if (node._cluster == null && !node.hidden) {
+                for (let cluster of buildClustersFromNode(node)) {
+                    this.clusters.push(cluster)
+                }
+            }
+        }
+
+        function buildClustersFromNode(node) {
+            let clusters = [];
+            node._cluster = new Set([node])
+            clusters.push(node._cluster)
+            let currentLayer
+
+            // BFS Pass
+            currentLayer = new Set([node]);
+            while (currentLayer.size > 0) {
+                let nextLayer = new Set();
+                for (let currentNode of currentLayer) {
+                     let nextNodes = [
+                         ...currentNode.outgoingEdges.map(edge => edge.destinationNode),
+                         ...currentNode.incomingEdges.map(edge => edge.sourceNode),
+                     ]
+                         .filter(node => !node.hidden && node._cluster == null);
+
+                     for (let nextNode of nextNodes) {
+                         if (nextLayer.has(nextNode)) {
+                             continue
+                         }
+
+                         if (currentNode._cluster.size < CLUSTER_SIZE) {
+                             nextNode._cluster = currentNode._cluster
+                             currentNode._cluster.add(nextNode)
+                         } else {
+                             nextNode._cluster = new Set([nextNode])
+                             clusters.push(nextNode._cluster)
+                         }
+                         nextLayer.add(nextNode)
+                     }
+                }
+
+                currentLayer = new Set(nextLayer);
+            }
+
+            return clusters
+        }
+    }
+
+
+
     run() {
+        // for (let node of this._graphSystem.nodes) {
+        //     this.entitiesGrid.updateEntity(node, node.position.x, node.position.y)
+        // }
+
         this.calculateEdgeForces();
         this.calculateGravitationalForces();
+        // this.calculateGravitationalForcesClusters();
+        // this.calculateEfficientGravitationalForces();
         this.calculateContainerForces();
+        this.addCenterPull();
         this.integrate();
+    }
+
+    addCenterPull() {
+        let nodes = [...this._graphSystem.nodes.filter(node => !node.hidden)];
+
+        let center = new Vector()
+        for (let node of nodes) {
+            let diff = Vector.Minus(center, node.position)
+            node.physics.force.add(Vector.Multiply(diff.normalized(), 0.1 * Math.pow(diff.magnitude(), 0.7)))
+        }
     }
 
     calculateEdgeForces() {
@@ -50,6 +133,97 @@ class Forces {
 
             edge.sourceNode.physics.force.add(forceVector);
             edge.destinationNode.physics.force.add(Vector.Inverted(forceVector));
+        }
+    }
+
+    calculateEfficientGravitationalForces() {
+        let nodes = [...this._graphSystem.nodes.filter(node => !node.hidden)];
+        let GRAVITY_RADIUS = 400;
+        for (let node of nodes) {
+            let closeNodes = this.entitiesGrid.getEntitiesInRect(
+                node.position.x - GRAVITY_RADIUS,
+                node.position.y - GRAVITY_RADIUS,
+                node.position.x + GRAVITY_RADIUS,
+                node.position.y + GRAVITY_RADIUS,
+            )
+            for (let closeNode of closeNodes) { //.filter(closeNode => closeNode.originalNodeRef.sourceObject.dbId > node.originalNodeRef.sourceObject.dbId)
+                if (node === closeNode) {
+                    continue
+                }
+                let node1 = node;
+                let node2 = closeNode;
+
+                let distanceVector = Vector.Minus(node1.position, node2.position);
+                let forceVector = distanceVector.setMagnitude(Forces.calculateGravitationalForce(distanceVector.magnitude()) / 2);
+                if (Math.random() > 0.9) {
+                    forceVector.add(forceVector)
+                    forceVector.add(forceVector)
+                    forceVector.add(forceVector)
+                }
+                node1.physics.force.add(forceVector);
+                node2.physics.force.add(Vector.Inverted(forceVector));
+            }
+
+            //
+            // for (let s)
+        }
+    }
+
+
+    calculateGravitationalForcesClusters() {
+        for (let i = 0; i < this.clusters.length; i++) {
+            let cluster1 = this.clusters[i];
+            let cluster1Pos = {
+                x: 0,
+                y: 0
+            }
+            for (let node of cluster1) {
+                cluster1Pos.x += node.position.x
+                cluster1Pos.y += node.position.y
+            }
+            cluster1Pos.x /= cluster1.size
+            cluster1Pos.y /= cluster1.size
+
+            for (let j = i + 1; j < this.clusters.length; j+=1) {
+                let cluster2 = this.clusters[j];
+                let cluster2Pos = {
+                    x: 0,
+                    y: 0
+                }
+                for (let node of cluster2) {
+                    cluster2Pos.x += node.position.x
+                    cluster2Pos.y += node.position.y
+                }
+                cluster2Pos.x /= cluster2.size
+                cluster2Pos.y /= cluster2.size
+
+                let distanceVector = Vector.Minus(cluster1Pos, cluster2Pos);
+                let forceVector = distanceVector.setMagnitude(Forces.calculateGravitationalForce(distanceVector.magnitude()));
+                forceVector.multiply(cluster2.size + cluster2.size)
+                let invertedForce = Vector.Inverted(forceVector)
+
+                for (let node of cluster1) {
+                    node.physics.force.add(forceVector);
+                }
+                for (let node of cluster2) {
+                    node.physics.force.add(invertedForce);
+                }
+            }
+        }
+
+        for (let cluster of this.clusters) {
+            let nodes = [...cluster];
+            for (let i = 0; i < nodes.length - 1; i+=1) {
+                for (let j = i + 1; j < nodes.length; j+=1) {
+                    let node1 = nodes[i];
+                    let node2 = nodes[j];
+
+                    let distanceVector = Vector.Minus(node1.position, node2.position);
+                    let forceVector = distanceVector.setMagnitude(Forces.calculateGravitationalForce(distanceVector.magnitude()));
+                    node1.physics.force.add(forceVector);
+                    node2.physics.force.add(Vector.Inverted(forceVector));
+                }
+            }
         }
     }
 

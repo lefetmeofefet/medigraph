@@ -1,0 +1,33 @@
+
+match 
+	(src:ReferenceEntity),
+    (dst:ReferenceEntity)
+	where src.identifier = "Q9H4B7" // TUBB1
+
+with src, dst
+MATCH p = (
+(src)
+  -[edge:
+  referenceEntity|
+  medigraph_instanceOf|
+  medigraph_input|
+  output|
+  medigraph_catalyses|
+  medigraph_catalystCatalyses|
+  medigraph_regulates|
+  medigraph_regulatorRegulates|
+  medigraph_componentOf|
+  medigraph_memberOf|
+  medigraph_candidateOf
+  *1..10]->
+(dst)
+)
+// Filter only for homo sapiens
+  WHERE ALL(node IN nodes(p)
+    WHERE (NOT exists(node.speciesName) OR node.speciesName = 'Homo sapiens')
+    and not (node.dbId in [29372, 70106])
+  ) 
+  with distinct dst
+  return dst.displayName
+  order by dst.displayName
+  //return distinct src, dst

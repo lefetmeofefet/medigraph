@@ -4,6 +4,10 @@ import "./dialog.js"
 import "./x-icon.js"
 import "./x-button.js"
 import {Vector} from "../graphshroom/physics/vector.mjs";
+import {debounce, post} from "../../parsers/parserUtil.js";
+import {EntityInstance} from "../../bioChemicalEntities/instances/EntityInstance.js";
+import {Medigraph} from "../../bioChemicalEntities/Medigraph.js";
+import {textSearchNodes} from "../../parsers/neo4jReactomeReader.js";
 
 let EdgeTypes = [
     {
@@ -35,13 +39,16 @@ let PathOptions = [
         name: "Shortest Path",
         selected: false,
     }, {
-        name: "Affecting Nodes",
+        name: "Upstream Nodes",
         selected: false,
     }, {
-        name: "Impacted Nodes",
+        name: "Downstream Nodes",
         selected: false,
     }, {
         name: "Paths Between",
+        selected: false,
+    }, {
+        name: "Nearest Neighbors",
         selected: false,
     }];
 
@@ -58,9 +65,34 @@ customElements.define("navigation-bar", class extends HTMElement {
     constructor() {
         super({
             suggestedNodes: [],
+            suggestedNeo4jNodes: null,
         });
+        this.searchText = null;
+        this.neo4jSearchController = null;
+        this.waitingForNeo4jResponse = false;
 
         window.zoom = node => this.zoomOnNode(node)
+        this.searchNeo4jNodes = debounce(async text => {
+            console.log("Searching...")
+            if (this.waitingForNeo4jResponse) {
+                this.neo4jSearchController.abort();
+            }
+
+            this.waitingForNeo4jResponse = true;
+
+            this.neo4jSearchController = new AbortController();
+            try {
+                let results = await textSearchNodes(text, this.neo4jSearchController.signal);
+                this.waitingForNeo4jResponse = false;
+                if (results.length > 100) {
+                    results = results.slice(0, 100)
+                }
+                this.state.suggestedNeo4jNodes = results;
+            } catch(e) {
+
+            }
+
+        }, 500)
     }
 
     render() {
@@ -83,9 +115,12 @@ customElements.define("navigation-bar", class extends HTMElement {
     
     #dropdown {
         max-width: 95%;
+        overflow-y: auto;
+        max-height: -webkit-fill-available;
+        margin-bottom: 70px;
     }
     
-    #dropdown > .item {
+    .item {
         display: flex;
         cursor: pointer;
         padding: 10px 15px;
@@ -95,7 +130,7 @@ customElements.define("navigation-bar", class extends HTMElement {
         background-color: #ffffff10
     }
     
-    #dropdown > .item > .type-circle {
+    .item > .type-circle {
         border-radius: 100px;
         margin: 5px 10px 5px 0;
         width: 15px;
@@ -125,6 +160,11 @@ customElements.define("navigation-bar", class extends HTMElement {
     .title-button {
         margin-right: 10px;
         background-color: #272727;
+    }
+    
+    .title-button > x-icon {
+        margin-left: 7px;
+        opacity: 0.7;
     }
     
     #filterPathsDialog > .item > .radio-button {
@@ -173,15 +213,72 @@ customElements.define("navigation-bar", class extends HTMElement {
         <div class="name">${() => this.highlightPartialText(node.name)}</div>
     </div>
     `)}
+    <div style="flex: 1; height: 0; border-bottom: 2px solid #ffffff30;"></div>
+    <div>
+        ${() => this.state.suggestedNeo4jNodes == null ?
+            this.html()`<div class="item">Searching...</div>`
+            :
+            (this.state.suggestedNeo4jNodes.length === 0 ?
+                    this.html()`<div class="item">No results</div>`
+                    :
+                    this.state.suggestedNeo4jNodes.map(node => this.html()`
+                    <div class="item" onmousedown=${() => () => this.zoomOnNode(node)}>
+                        <div class="type-circle" style="background-color: ${() => toColor(node.color)};"></div>
+                        <div class="name">${() => this.highlightPartialText(
+                        node.displayName + (node.name == null ? "" : (", " + node.name))
+                    )}</div>
+                    </div>
+                    `)
+            )
+        }
+    </div>
 </x-dialog>
 
 </div>
 
-<x-button id="csvButton"
+<x-button id="exportsButton"
           class="title-button"
-          onclick=${() => () => window.csvReferenceRelationships()}
+          tabindex="0"
+          onclick=${() => () => this.toggleFilterDialog(
+            this.shadowRoot.querySelector("#exportsDialog"),
+            this.shadowRoot.querySelector("#exportsButton")
+        )}
+          onblur=${() => () => this.shadowRoot.querySelector("#exportsDialog").close()}
           >
-          CSV
+      Export
+      <x-icon icon="fa fa-caret-down"></x-icon>
+      <x-dialog id="exportsDialog"
+              class="filterDialog" 
+              onclick=${() => e => {
+            e.stopPropagation();
+            e.preventDefault()
+        }}
+              onmousedown=${() => e => {
+            e.stopPropagation();
+            e.preventDefault()
+        }}
+              onhover=${() => e => {
+            e.stopPropagation();
+            e.preventDefault()
+        }}
+              onmouseover=${() => e => {
+            e.stopPropagation();
+            e.preventDefault()
+        }}
+              onmousein=${() => e => {
+            e.stopPropagation();
+            e.preventDefault()
+        }}
+          >
+        <div class="item" 
+             onmousedown=${() => () => this.downloadSbml()}>
+             SBML
+        </div>
+        <div class="item" 
+             onmousedown=${() => () => window.csvReferenceRelationships()}>
+             CSV
+        </div>
+    </x-dialog>
 </x-button>
 
 <x-button id="filterPathsButton"
@@ -192,8 +289,8 @@ customElements.define("navigation-bar", class extends HTMElement {
             this.shadowRoot.querySelector("#filterPathsButton")
         )}
           onblur=${() => () => this.shadowRoot.querySelector("#filterPathsDialog").close()}>
-Paths
-
+    Paths
+    <x-icon icon="fa fa-caret-down"></x-icon>
     <x-dialog id="filterPathsDialog"
               class="filterDialog" 
               onclick=${() => e => {
@@ -230,6 +327,7 @@ Paths
         <div id="node-buttons">
             <x-button id="hide-nodes" onclick=${() => () => window.hideFadedNodes()}>Hide Faded Nodes</x-button>
             <x-button id="reset-nodes" onclick=${() => () => window.resetHiddenNodes()}>Reset Nodes</x-button>
+            <x-button id="download-nodes" onclick=${() => () => window.downloadPath()}>Download Path</x-button>
         </div>
     </x-dialog>
 
@@ -244,6 +342,7 @@ Paths
         )}
           onblur=${() => () => this.shadowRoot.querySelector("#filterNodesDialog").close()}>
     Nodes
+    <x-icon icon="fa fa-caret-down"></x-icon>
     <x-dialog id="filterNodesDialog"
               class="filterDialog" 
               onclick=${() => e => {
@@ -290,6 +389,7 @@ Paths
         )}
           onblur=${() => () => this.shadowRoot.querySelector("#filterEdgesDialog").close()}>
     Edges
+    <x-icon icon="fa fa-caret-down"></x-icon>
     <x-dialog id="filterEdgesDialog" 
               class="filterDialog"
               onclick=${() => e => {
@@ -347,6 +447,7 @@ Paths
         }
         let input = this.shadowRoot.querySelector("#search");
 
+        // requesting animationFrame makes the code run after the result of the focus / blur events
         requestAnimationFrame(() => {
             let text = input.value;
             let dropdown = this.shadowRoot.querySelector("#dropdown");
@@ -355,22 +456,33 @@ Paths
             } else {
                 let suggestedNodes = [];
                 for (let node of graphSystem.nodes) {
-                    if (node.name.toLowerCase().indexOf(text.toLowerCase()) !== -1) {
+                    if (!node.hidden && node.name.toLowerCase().indexOf(text.toLowerCase()) !== -1) {
                         suggestedNodes.push(node)
                     }
                 }
 
                 this.state.suggestedNodes = suggestedNodes;
 
+
                 dropdown.open({
                     x: input.offsetLeft,
                     y: input.offsetTop + input.offsetHeight + 5
                 });
+
+                if (text !== this.searchText) {
+                    this.state.suggestedNeo4jNodes = null;
+                    this.searchText = text;
+                    this.searchNeo4jNodes(text)
+                }
             }
         })
     }
 
     zoomOnNode(node) {
+        if (!node.selected) {
+            nodeClicked(node)
+        }
+
         window._NavigationSystem._zoomPoint = {
             x: node.position.x,
             y: node.position.y
@@ -455,5 +567,68 @@ Paths
         SelectedPathOption.selected = true;
         SearchOptions.PathOption = SelectedPathOption.name
         window.updatePathSearch()
+    }
+
+    async downloadSbml() {
+        let reactions = [];
+        let speciesNodes = new Set();
+
+        // Add reactions and species that are reactant/product
+        for (let node of graphSystem.nodes.values()) {
+            if (node.originalNodeRef.type === "BiochemicalReaction" && (node._selected || selectedNodes.size === 0)) {
+                reactions.push({
+                    id: node.originalNodeRef.id + "_" + node.name,
+                    name: node.name,
+                    reactants: node.incomingEdges
+                        .filter(e => e.description === Medigraph.EDGE_TYPES.REACTANT)
+                        .map(e => {
+                            speciesNodes.add(e.sourceNode)
+                            return {
+                                id: e.sourceNode.originalNodeRef.id + "_" + e.sourceNode.originalNodeRef.name,
+                                stoichiometry: e._originalEdgeRef.properties.stoichiometry,
+                                order: e._originalEdgeRef.properties.order
+                            }
+                        }),
+                    modifiers: node.incomingEdges
+                        .filter(e => e.description === Medigraph.EDGE_TYPES.CATALYST
+                            || e.description === Medigraph.EDGE_TYPES.INHIBITOR)
+                        .map(e => {
+                            speciesNodes.add(e.sourceNode)
+                            return {
+                                id: e.sourceNode.originalNodeRef.id + "_" + e.sourceNode.originalNodeRef.name,
+                                stoichiometry: e._originalEdgeRef.properties.stoichiometry,
+                                order: e._originalEdgeRef.properties.order
+                            }
+                        }),
+                    products: node.outgoingEdges
+                        .filter(edge => edge.description !== "in")
+                        .map(e => {
+                            speciesNodes.add(e.destinationNode)
+                            return {
+                                id: e.destinationNode.originalNodeRef.id + "_" + e.destinationNode.originalNodeRef.name,
+                                stoichiometry: e._originalEdgeRef.properties.stoichiometry,
+                                order: e._originalEdgeRef.properties.order
+                            }
+                        })
+                })
+            }
+        }
+
+        let species = [...speciesNodes].map(node => ({
+            name: node.name,
+            id: node.originalNodeRef.id + "_" + node.originalNodeRef.name,
+            compartment: node.originalNodeRef.bioEntity.location.cellularLocation
+        }))
+
+        let medigraph = {
+            compartments: [...new Set(species.map(n => n.compartment))],
+            nodes: {
+                reactions: reactions,
+                species: species
+            }
+        }
+        let response = await post("/convert_to_sbml", {medigraph: medigraph});
+        let sbml = response.sbml;
+        download("pathway.sbml", sbml)
     }
 });

@@ -1,3 +1,4 @@
+
 class Medigraph {
     static EDGE_TYPES = {
         REACTANT: "reactant",
@@ -26,12 +27,16 @@ class Medigraph {
 
     createNode(bioEntity, sourceType, sourceObject) {
         function uuidv4() {
-            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+            if (typeof window == "undefined") {
+                return Math.random().toString(26).slice(2)
+            }
+            return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
                 (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
             );
         }
 
         let node = {
+            // id: sourceObject.dbId + bioEntity.type,
             id: uuidv4(),
             name: bioEntity.name,
             bioEntity: bioEntity,
@@ -58,12 +63,13 @@ class Medigraph {
         this.nodes.delete(node.id);
     }
 
-    createEdge(source, destination, description, sourceObject) {
+    createEdge(source, destination, description, sourceObject, properties) {
         let newEdge = {
             source: source.id,
             destination: destination.id,
             sourceObject,
-            description
+            description,
+            properties
         }
         this.edges.push(newEdge)
         source.outgoingEdges.push(newEdge)

@@ -248,33 +248,33 @@ class Node {
 
     hide() {
         this.hidden = true;
-        // this.hiddenStateChanged()
-
-        this.mainSprite.visible = false;
-        this.outlineSprite.visible = false;
-        this.nameText.visible = false;
-        for (let edge of [...this.incomingEdges, ...this.outgoingEdges]) {
-            edge.hide()
-        }
+        this.hiddenStateChanged()
+        //
+        // this.mainSprite.visible = false;
+        // this.outlineSprite.visible = false;
+        // this.nameText.visible = false;
+        // for (let edge of [...this.incomingEdges, ...this.outgoingEdges]) {
+        //     edge.hide()
+        // }
     }
 
     show() {
         this.hidden = false;
-        // this.hiddenStateChanged()
+        this.hiddenStateChanged()
 
-        this.mainSprite.visible = true;
-        this.outlineSprite.visible = true;
-        this.nameText.visible = true;
-        for (let edge of this.incomingEdges) {
-            if (!edge.sourceNode.hidden) {
-                edge.show()
-            }
-        }
-        for (let edge of this.outgoingEdges) {
-            if (!edge.destinationNode.hidden) {
-                edge.show()
-            }
-        }
+        // this.mainSprite.visible = true;
+        // this.outlineSprite.visible = true;
+        // this.nameText.visible = true;
+        // for (let edge of this.incomingEdges) {
+        //     if (!edge.sourceNode.hidden) {
+        //         edge.show()
+        //     }
+        // }
+        // for (let edge of this.outgoingEdges) {
+        //     if (!edge.destinationNode.hidden) {
+        //         edge.show()
+        //     }
+        // }
     }
 
     hideDisplay() {
@@ -301,12 +301,12 @@ class Node {
             this.outlineSprite.visible = true;
             this.nameText.visible = true;
             for (let edge of this.incomingEdges) {
-                if (!edge.sourceNode.hidden) {
+                if (!edge.sourceNode.hidden && !edge.sourceNode.displayHidden) {
                     edge.show()
                 }
             }
             for (let edge of this.outgoingEdges) {
-                if (!edge.destinationNode.hidden) {
+                if (!edge.destinationNode.hidden && !edge.destinationNode.displayHidden) {
                     edge.show()
                 }
             }

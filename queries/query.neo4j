@@ -1,0 +1,9 @@
+// Edges to switch direction:
+// - hasMember -> medigraph_memberOf (177413)
+// - hasComponent -> medigraph_componentOf (229154)
+// - hasCandidate -> medigraph_candidateOf (26588)
+// - input -> medigraph_input (157214)
+// - catalystActivity -> medigraph_catalyses (44482)
+// - physicalEntity -> medigraph_catalystCatalyses (physicalEntity always points to the entity that catalyses...) (34765)
+// - regulator -> medigraph_regulatorRegulates (5583)
+// - regulatedBy -> medigraph_regulates (8059)

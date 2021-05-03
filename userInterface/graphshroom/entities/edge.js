@@ -65,6 +65,7 @@ class Edge {
         this.destinationNode = destinationNode;
         destinationNode.incomingEdges.push(this);
         this.description = edgeObject.description;
+        this._originalEdgeRef = edgeObject;
         this._createSprites(edgeObject);
     }
 
@@ -96,12 +97,6 @@ class Edge {
         this.descriptionText.tint = 0xffffff;
 
         this.updatePoints();
-
-        if (Math.random() > 0.05) {
-            // this.descriptionText.visible = false
-            // this.triangleSprite.visible = false
-            // this.lineSprite.visible = false
-        }
 
         Edge.EdgesContainer.addChild(this.lineSprite);
         Edge.EdgesContainer.addChild(this.triangleSprite);
@@ -150,7 +145,7 @@ class Edge {
         this.animationLine = new PIXI.Sprite(Edge.LineTexture);
         this.animationLine.anchor.y = 0.5;
 
-        // lineSprite.height is the "height" of the line, which is actually its width
+        // lineSprite.height is the "thickness" of the line
         this.animationLine.height = this.lineSprite.height;
         this.animationLine.tint = this.lineSprite.tint;
 

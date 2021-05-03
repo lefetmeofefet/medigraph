@@ -1,7 +1,7 @@
 class SparseEntitiesGrid {
     static get CELL_SIZE() {
         // return 1300;
-        return 300;
+        return 500;
     }
     constructor() {
         // Map of stringified 2d coordinate -> Set of entities

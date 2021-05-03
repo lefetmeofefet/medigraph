@@ -22,17 +22,22 @@ class NavigationDesktop extends NavigationBase {
 
         this._scaleDestination = 1;
         this._scaleSpeed = 0;
-        window.addEventListener('wheel', e => {
+        this.wheelListener = e => {
             this._zoomPoint = this._inputSystem.mouse;
             if (e.deltaY < 0) {
                 this.scaleIn(e.deltaY * this.MOUSE_SCALE_SPEED_MULTIPLIER);
             } else {
                 this.scaleOut(e.deltaY * this.MOUSE_SCALE_SPEED_MULTIPLIER);
             }
-        });
+        }
+        window.addEventListener('wheel', this.wheelListener);
 
         // Clear right click
         document.addEventListener('contextmenu', event => event.preventDefault());
+    }
+
+    destroy() {
+        window.removeEventListener("wheel", this.wheelListener);
     }
 
     _limitScale() {

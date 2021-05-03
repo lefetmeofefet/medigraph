@@ -27,9 +27,13 @@ class PixiCanvas {
             height: window.innerHeight
         });
 
-        window.onload = () => {
+        if (document.body != null) {
             document.body.appendChild(this.renderer.view);
-        };
+        } else {
+            window.onload = () => {
+                document.body.appendChild(this.renderer.view);
+            };
+        }
 
         this.renderer.view.style.position = "absolute";
         this.renderer.view.style.display = "block";
@@ -82,13 +86,19 @@ class PixiCanvas {
     }
 
     startRenderLoop(updateCallback) {
-        let ticker = new PIXI.Ticker();
-        ticker.add(delta => {
+        this.ticker = new PIXI.Ticker();
+        this.ticker.add(delta => {
             updateCallback(delta);
             this.renderer.render(this.stage);
             this.frame += 1;
         });
-        ticker.start();
+        this.ticker.start();
+    }
+
+    destroy() {
+        this.ticker.stop();
+        document.body.removeChild(this.renderer.view);
+        this.renderer.destroy(true);
     }
 }
 

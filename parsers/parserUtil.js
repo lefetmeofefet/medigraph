@@ -92,16 +92,56 @@ function parsingError(error) {
     throw error
 }
 
-async function post(url, body, params = {}) {
-    const response = await fetch(url, {
+async function post(url, body, params = {}, alternativeFetch, signal) {
+    const response = await (alternativeFetch || fetch)(url, {
         method: "POST",
         headers: Object.assign({
             "Content-Type": "application/json; charset=utf-8",
         }, params),
         body: JSON.stringify(body),
+        signal: signal
     });
     return await response.json()
 }
 
-export {one, doSomethingRecursive, parsingError, jsonSchemaValidate, post}
+
+async function queryNeo4J(query, parameters = {}, alternativeFetch, abortSignal) {
+    let neo4jUrl = "http://localhost:7474/db/data/transaction/commit";
+
+    let base64 = (typeof window === "undefined") ? b => new Buffer(b).toString('base64') : btoa
+    let response = await post(
+        neo4jUrl,
+        {
+            statements: [{
+                statement: query,
+                parameters: parameters
+            }],
+        },
+        {
+            "Authorization": `Basic ${base64(`${"neo4j"}:${"asdf"}`)}`
+        },
+        alternativeFetch,
+        abortSignal
+    )
+    console.log("NEO4J RESPONSE: ", response);
+    return response.results[0];
+}
+
+function debounce(func, timeout=300, firstTime = false) {
+    let timer;
+    return (...args) => {
+        if (timer == null && firstTime) {
+            func(...args);
+            timer = setTimeout(() => timer = undefined, timeout)
+        } else {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                func(...args)
+                timer = undefined;
+            }, timeout);
+        }
+    };
+}
+
+export {one, doSomethingRecursive, parsingError, jsonSchemaValidate, post, queryNeo4J, debounce}
 

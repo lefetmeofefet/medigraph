@@ -24,11 +24,16 @@ function create_graph(anchor, graph, {onLoadPixi, onLoadSystems, onHover, onHove
     };
 
     // PIXI.loader
-    PIXI.Loader.shared
-        .add("Roboto", "userInterface/graphshroom/res/font/roboto-bitmap.fnt")
-        .on("progress", e => console.log("Progress: ", e))
-        // .load(setup);
-        .load(() => onLoadPixi((...args) => setup(...args)));
+    if (window.loaded) {
+        onLoadPixi((...args) => setup(...args))
+    } else {
+        PIXI.Loader.shared
+            .add("Roboto", "userInterface/graphshroom/res/font/roboto-bitmap.fnt")
+            .on("progress", e => console.log("Progress: ", e))
+            // .load(setup);
+            .load(() => onLoadPixi((...args) => setup(...args)));
+    }
+    window.loaded = true
 }
 
 function getSystems(pixiCanvas, graph, {onLoadSystems, onHover, onHoverOut, onClick, onFinishDrag, onRightClick}) {
@@ -43,7 +48,6 @@ function getSystems(pixiCanvas, graph, {onLoadSystems, onHover, onHoverOut, onCl
         pixiCanvas,
         graph
     );
-    onLoadSystems(graphSystem);
 
     let nodeInteractionSystem = new NodeInteraction(inputSystem, graphSystem, onHover, onHoverOut, onClick, onFinishDrag, onRightClick);
 
@@ -70,9 +74,15 @@ function getSystems(pixiCanvas, graph, {onLoadSystems, onHover, onHoverOut, onCl
         );
 
     let edgeForcesSystem = new Forces(graphSystem, nodeInteractionSystem);
-    let entityHiderSystem = new EntityHider(pixiCanvas, graphSystem);
+    // let entityHiderSystem = new EntityHider(pixiCanvas, graphSystem);
 
     window._NavigationSystem = navigationSystem
+    window._ForcesSystem = edgeForcesSystem
+
+    onLoadSystems(graphSystem, () => {
+        pixiCanvas.destroy();
+        navigationSystem.destroy && navigationSystem.destroy()
+    });
     return [
         inputSystem,
         nodeInteractionSystem,

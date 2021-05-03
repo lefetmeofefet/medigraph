@@ -8,7 +8,7 @@
     <!--<script src="graphshroom/libs/pixi/pixi-v5.1.3.min.js"></script>-->
 
     <!--Icons-->
-<!--    <link rel="stylesheet" href="https://kit-free.fontawesome.com/releases/latest/css/free.min.css" media="all">-->
+    <link rel="stylesheet" href="https://kit-free.fontawesome.com/releases/latest/css/free.min.css" media="all">
 <!--    <link rel="stylesheet" href="https://kit-free.fontawesome.com/releases/latest/css/free-v4-shims.min.css"-->
 <!--          media="all">-->
 
@@ -61,8 +61,9 @@
         import {BiochemicalReaction} from "./bioChemicalEntities/BiochemicalReaction.js";
         import {EntityInstance} from "./bioChemicalEntities/instances/EntityInstance.js";
         import {Medigraph} from "./bioChemicalEntities/Medigraph.js";
-        import {one} from "./parsers/parserUtil.js";
+        import {one, debounce} from "./parsers/parserUtil.js";
         import {Group} from "./bioChemicalEntities/instances/Group.js";
+        import {downloadPartialMedigraph, textSearchNodes} from "./parsers/neo4jReactomeReader.js";
 
 
         window.graphSystem = null;
@@ -71,7 +72,21 @@
         }
         let relevantNodes = new Set();
         let selectedNodes = new Set();
+        window.selectedNodes = selectedNodes
         let negativeSelectedNodes = new Set();
+
+        window.download = (filename, text) => {
+            let element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+
+            element.style.display = 'none';
+            document.body.appendChild(element);
+
+            element.click();
+
+            document.body.removeChild(element);
+        }
 
         window.csvReferenceRelationships = () => {
             let directionalInteractingNodes = new Map();
@@ -145,19 +160,6 @@
             console.log("Interactions: ", interactions)
             console.log("Expected Interactions: ", directionalInteractingNodes.size)
 
-            function download(filename, text) {
-                let element = document.createElement('a');
-                element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-                element.setAttribute('download', filename);
-
-                element.style.display = 'none';
-                document.body.appendChild(element);
-
-                element.click();
-
-                document.body.removeChild(element);
-            }
-
             download("pathway_reference_relationships.csv", csv)
         }
 
@@ -181,8 +183,9 @@
                 onLoadPixi: loadSystemsCb => {
                     pixiLoaded(loadSystemsCb);
                 },
-                onLoadSystems: graph => {
-                    graphSystem = graph;
+                onLoadSystems: (graph, destroyCb) => {
+                    // TODO: Remove the destroyCb, think of a better way to manage this shit
+                    window.graphSystem = graph;
                     window.NodeColors.forEach(colorMapping => {
                         if (colorMapping.filtered) {
                             colorMapping.filtered = false;
@@ -208,39 +211,7 @@
                     // }
                 },
                 onClick: clickedNode => {
-                    if (clickedNode.negativeSelected) {
-                        return
-                    }
-                    clickedNode.selected = !clickedNode.selected;
-                    clickedNode.stable = true;
-
-                    // let popup = document.querySelector("#popup");
-                    // popup.popup(clickedNode)
-
-                    if (clickedNode.selected) {
-                        selectedNodes.add(clickedNode);
-                    } else {
-                        selectedNodes.delete(clickedNode);
-                    }
-
-                    relevantNodes.clear();
-                    if (selectedNodes.size > 0) {
-                        calculateRelevantNodes()
-                    } else {
-                        if (selectedNodes.size > 0) {
-                            for (let node of graphSystem.nodes) {
-                                node.faded = !relevantNodes.has(node);
-                            }
-                        }
-
-                        if (selectedNodes.size === 0) {
-                            for (let node of graphSystem.nodes) {
-                                node.faded = false
-                                node.negativeSelected = false
-                                negativeSelectedNodes.clear()
-                            }
-                        }
-                    }
+                    nodeClicked(clickedNode)
                 },
                 onFinishDrag: node => {
                     node.stable = true;
@@ -276,6 +247,43 @@
                 }
             }
         )
+
+        window.nodeClicked = nodeClicked
+        function nodeClicked(clickedNode) {
+            if (clickedNode.negativeSelected) {
+                return
+            }
+            clickedNode.selected = !clickedNode.selected;
+            clickedNode.stable = true;
+
+            // let popup = document.querySelector("#popup");
+            // popup.popup(clickedNode)
+
+            if (clickedNode.selected) {
+                selectedNodes.add(clickedNode);
+            } else {
+                selectedNodes.delete(clickedNode);
+            }
+
+            relevantNodes.clear();
+            if (selectedNodes.size > 0) {
+                calculateRelevantNodes()
+            } else {
+                if (selectedNodes.size > 0) {
+                    for (let node of graphSystem.nodes) {
+                        node.faded = !relevantNodes.has(node);
+                    }
+                }
+
+                if (selectedNodes.size === 0) {
+                    for (let node of graphSystem.nodes) {
+                        node.faded = false
+                        node.negativeSelected = false
+                        negativeSelectedNodes.clear()
+                    }
+                }
+            }
+        }
 
         async function delay(ms) {
             return new Promise(accept => setTimeout(accept, ms))
@@ -350,10 +358,10 @@
         }
 
         window.NodeColors = [
-            {
+            { // Reference nodes
                 color: GREY,
                 types: ["Enzyme", "SmallMolecule", "BiochemicalEntity", "Complex"],
-                filtered: true
+                filtered: false
             }, {
                 color: DARK_GREEN,
                 types: ["Compartment"],
@@ -388,11 +396,11 @@
 
         function turnMedigraphIntoGraphshroom(graph) {
             window.medigraph = graph;
-
-            for (let node of graph.nodes.values()) {
+            let nodes = [...graph.nodes.values()]
+            for (let node of nodes) {
                 node.position = {
-                    x: Math.random() * 1000,
-                    y: Math.random() * 1000,
+                    x: Math.random() * Math.sqrt(nodes.length) * 200,
+                    y: Math.random() * Math.sqrt(nodes.length) * 200,
                 }
 
                 node.color = GREEN;
@@ -435,14 +443,16 @@
         function calculateRelevantNodes(searchMethod = SearchOptions.PathOption) {
             if (searchMethod === "Related Nodes") {
                 updateRelevantNodesBFS("both")
-            } else if (searchMethod === "Affecting Nodes") {
+            } else if (searchMethod === "Upstream Nodes") {
                 updateRelevantNodesBFS("in")
-            } else if (searchMethod === "Impacted Nodes") {
+            } else if (searchMethod === "Downstream Nodes") {
                 updateRelevantNodesBFS("out")
             } else if (searchMethod === "Shortest Path") {
                 updateRelevantNodesShortestPath()
             } else if (searchMethod === "Paths Between") {
                 updateRelevantNodesPathsBetween()
+            } else if (searchMethod === "Nearest Neighbors") {
+                updateRelevantNodesNearestNeighbors()
             }
 
             // Update faded nodes after finding relevantNodes
@@ -607,6 +617,21 @@
             return isNodeRelevant
         }
 
+        function updateRelevantNodesNearestNeighbors() {
+            let nodes = [];
+
+            for (let node of selectedNodes) {
+                node.outgoingEdges.map(edge => edge.destinationNode)
+                    .filter(node => !node.hidden && !negativeSelectedNodes.has(node))
+                    .forEach(node => nodes.push(node));
+
+                node.incomingEdges.map(edge => edge.sourceNode)
+                    .filter(node => !node.hidden && !negativeSelectedNodes.has(node))
+                    .forEach(node => nodes.push(node));
+            }
+
+            relevantNodes = new Set([...selectedNodes, ...nodes])
+        }
 
         window.hideFadedNodes = () => {
             for (let node of graphSystem.nodes) {
@@ -631,6 +656,18 @@
                 }
             }
             calculateRelevantNodes()
+        }
+
+        window.downloadPath = async () => {
+            let newMedigraph = await downloadPartialMedigraph([...selectedNodes]);
+            if (newMedigraph.nodes.size === 0) {
+                alert("Zero results! welp")
+            } else {
+                replaceMedigraph(newMedigraph)
+            }
+        }
+
+        function replaceMedigraph(newMedigraph) {
         }
 
     </script>
